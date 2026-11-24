@@ -20,9 +20,9 @@
 
 ## 次にやること
 
-1. Render に kintai-cpp / kintai-python を作る（Render API で。GitHub 連携が kintai_cpp を見られるかが条件）。
-2. 本番で `tools/kintai_check.py <url> mysql` を両方に流して一致を確認。
-3. 実機（スマホ）でパスキー登録 → お店作成 → 扉の QR → 打刻 → 修正リクエスト → 承認。
+（済）Render に kintai-cpp（srv-dc2e1e6tlv9c73frefs0）/ kintai-python（srv-dc2e1ejrjlhs73cei4dg、URL は
+   kintai-python-n9mo）を Render API で作成、env は TiDB の DB `kintai`。本番の両方で kintai_check（mysql）一致。
+1. 実機（スマホ）でパスキー登録 → お店作成 → 扉の QR → 打刻 → 修正リクエスト → 承認。
 
 ## あとでやるかもしれないこと
 

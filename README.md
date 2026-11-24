@@ -6,6 +6,17 @@
 土台は [yomei-o/junban_cpp](https://github.com/yomei-o/junban_cpp)（パスキーのログインとテナント）。
 Python/C++ の**機能パリティ**を保つのが方針（速度は別）。
 
+## 動いているサーバ（Render 無料枠＋TiDB Cloud の DB `kintai`）
+
+| 実装 | ログイン・お店の管理 |
+|---|---|
+| C++（cpp-httplib, Docker） | https://kintai-cpp.onrender.com/html/index.html |
+| Python（FastAPI） | https://kintai-python-n9mo.onrender.com/html/index.html |
+
+2 つは同じ TiDB を使うので、どちらから操作しても同じお店・同じ打刻が見える（パスキーは登録したドメインでだけ使える）。
+無料枠なので 15 分アクセスが無いと止まり、次の最初のアクセスは起動待ちになる（C++ が速い）。
+2026-11-24: 本番の両サーバで `tools/kintai_check.py`（mysql）が一致、手元の SQLite とも同じ結果。
+
 ## 使い方
 
 | 誰が | ページ | やること |
