@@ -51,14 +51,6 @@
   .msg.ok { color: var(--ok); }
   a { color: var(--accent); }
 
-  /* 電気 */
-  .light { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-  .bulb {
-    width: 96px; height: 96px; border-radius: 50%; background: var(--bulb-off);
-    transition: background .3s, box-shadow .3s; flex: none;
-  }
-  .bulb.on { background: var(--glow); box-shadow: 0 0 40px 12px color-mix(in srgb, var(--glow) 55%, transparent); }
-  .state { font-size: 1.3rem; font-weight: 700; }
   .toggle {
     position: relative; width: 72px; height: 40px; border-radius: 20px; padding: 0;
     background: var(--bulb-off); border: none;
@@ -112,8 +104,8 @@
     <div class="who" id="who">ログインしていません</div>
   </header>
   <p class="lead">
-    パスキー（WebAuthn）でログインして、自分のテナントの電気をオン・オフします。
-    テナントには、管理者から渡された URL（<code>?tenant=…</code>）を開いて参加申請します。
+    パスキー（WebAuthn）でログインして、お店の勤怠（打刻・勤務時間・修正リクエスト）を使います。
+    お店（テナント）には、管理者から渡された URL（<code>?tenant=…</code>）を開いて参加申請します。
   </p>
 
   <!-- URL でテナントを指定したとき -->
@@ -515,7 +507,7 @@ async function refreshTenant(quiet) {
     if (t.my_status === "pending") {
       $("tenantCard").classList.add("pending");
       body.append(
-        el("p", { text: "承認待ちです。テナントの管理者が承認すると、このページを開いたままで電気を使えるようになります。" }),
+        el("p", { text: "承認待ちです。お店の管理者が承認すると、このページを開いたままで使えるようになります。" }),
         el("div", { class: "row" }, el("button", { text: "申請を取り下げる", onclick: leaveTenant })));
       return;
     }
@@ -597,14 +589,6 @@ async function leaveTenant() {
   await refreshAll();
 }
 
-async function toggleLight() {
-  if (!current) return;
-  $("toggle").disabled = true;
-  const r = await api("/api/tenant/v0/switch_set", { tenant: TENANT, on: !current.on });
-  if (r.status !== "success") showMsg("msgTenant", "切り替えられません: " + r.message, "err");
-  await refreshAll();
-}
-
 async function approveMember(user, role) {
   const r = await api("/api/tenant/v0/approve", { tenant: TENANT, user, role });
   if (r.status !== "success") return showMsg("msgMembers", "承認できません: " + r.message, "err");
@@ -647,7 +631,6 @@ async function refreshTenants(quiet) {
     }
     for (const t of r.tenant_list) {
       const left = el("div", {},
-        t.my_status === "approved" ? el("span", { class: "dot" + (t.on ? " on" : "") }) : null,
         el("a", { href: "?tenant=" + t.tenant, text: t.name }),
         t.my_status === "pending" ? badge("承認待ち", "pending")
           : t.my_role ? badge(ROLE_LABEL[t.my_role], t.my_role === "admin" ? "admin" : "") : null,
@@ -693,7 +676,7 @@ async function addTenant() {
 }
 
 async function deleteTenant(t) {
-  if (!confirm("テナント「" + t.name + "」を削除しますか？（メンバーと電気の状態も消えます）")) return;
+  if (!confirm("テナント「" + t.name + "」を削除しますか？（メンバーも消えます）")) return;
   const r = await api("/api/tenant/v0/delete", { tenant: t.tenant });
   if (r.status !== "success") return showMsg("msgTenants", "削除できません: " + r.message, "err");
   showMsg("msgTenants", t.name + " を削除しました", "ok");
@@ -904,7 +887,7 @@ if (!supported()) {
 }
 
 refreshAll();
-// 承認された・電気が切り替わった・メンバーが増えた、を拾う。
+// 承認された・メンバーが増えた、を拾う。
 // 前の回が終わっていなければ飛ばす（サーバが遅いと回が重なって、詰まる一方になる）。
 // タブが裏にある間は問い合わせない。
 let polling = false;
