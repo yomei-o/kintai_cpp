@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>勤務時間</title>
+<link rel="stylesheet" href="kintai.css">
+</head>
+<body>
+<main class="wide">
+  <h1 id="storeName">勤務時間</h1>
+  <div id="nav"></div>
+
+  <div id="denied" class="card hidden"></div>
+
+  <div id="body" class="hidden">
+    <div class="card">
+      <div class="row" style="margin-top:0">
+        <input type="month" id="month">
+        <select id="who" class="hidden"></select>
+        <button id="csv">CSV で保存</button>
+      </div>
+      <div id="summary" class="row"></div>
+    </div>
+
+    <div id="allCard" class="card hidden">
+      <h2>全員の集計</h2>
+      <table id="allTable"></table>
+    </div>
+
+    <div id="detailCard" class="card">
+      <h2 id="detailTitle">日ごとの明細</h2>
+      <table id="detail"></table>
+      <div class="row">
+        <button id="addReq">打刻を足すお願い</button>
+      </div>
+      <p class="note">打刻の時刻を押すと、直す・消すお願いができます（自分の打刻だけ）。
+        日付は出勤した日。0 時をまたいだ勤務は出勤した日に数えます。</p>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+</main>
+
+<script src="kintai.js"></script>
+<script>
+"use strict";
+
+const STATE = {
+  ok: ["", ""],
+  working: ["勤務中", "ok"],
+  missing_out: ["退勤の打刻漏れ", "warn"],
+  missing_in: ["出勤の打刻漏れ", "warn"],
+};
+let me = null;        // /api/kintai/v0/status（自分の名前と立場）
+let data = null;      // /api/kintai/v0/month
+const WEEK = "日月火水木金土";
+
+$("nav").append(navLinks("month.html"));
+$("month").value = PARAMS.get("month") || thisMonth();
+
+function dayLabel(date) {
+  const d = new Date(date + "T00:00:00");
+  return (d.getMonth() + 1) + "/" + d.getDate() + "（" + WEEK[d.getDay()] + "）";
+}
+
+function punchCell(p, own) {
+  if (!p) return el("span", { class: "muted", text: "—" });
+  const label = hhmm(p.at) + (p.source === "request" ? " *" : "");
+  if (!own) return el("span", { text: label });
+  return el("a", { href: "#", text: label, onclick: (e) => { e.preventDefault(); askFix(p); } });
+}
+
+// 打刻を押したら「直す / 消す」を選ぶ
+function askFix(p) {
+  const dlg = el("dialog");
+  const go = (action) => {
+    dlg.close();
+    dlg.remove();
+    openRequestDialog({ action, punch: p,
+      onDone: () => showMsg("msg", "修正をお願いしました。お店の管理者の承認を待ってください", "ok") });
+  };
+  dlg.append(el("h2", { text: KIND_LABEL[p.kind] + " " + mdhm(p.at) }),
+    el("div", { class: "row" },
+      el("button", { class: "primary", text: "時刻・種類を直す", onclick: () => go("change") }),
+      el("button", { text: "消す", onclick: () => go("delete") }),
+      el("button", { text: "やめる", onclick: () => { dlg.close(); dlg.remove(); } })));
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+function drawDetail(u, own) {
+  const t = $("detail");
+  t.innerHTML = "";
+  t.append(el("tr", {}, ...["日付", "出勤", "退勤", "時間", ""].map((h) => el("th", { text: h }))));
+  if (!u.shifts.length) t.append(el("tr", {}, el("td", { colspan: "5", class: "muted", text: "この月の打刻はありません。" })));
+  for (const s of u.shifts) {
+    const [label, cls] = STATE[s.state];
+    const fix = [];
+    if (own && s.state === "missing_out") {
+      fix.push(el("button", { text: "退勤を足す", onclick: () => openRequestDialog({ action: "add", kind: "out", at: s.in.at,
+        onDone: () => showMsg("msg", "退勤を足すようお願いしました", "ok") }) }));
+    }
+    if (own && s.state === "missing_in") {
+      fix.push(el("button", { text: "出勤を足す", onclick: () => openRequestDialog({ action: "add", kind: "in", at: s.out.at,
+        onDone: () => showMsg("msg", "出勤を足すようお願いしました", "ok") }) }));
+    }
+    t.append(el("tr", { class: cls === "warn" ? "warn" : "" },
+      el("td", { text: dayLabel(s.date) }),
+      el("td", {}, punchCell(s.in, own)),
+      el("td", {}, punchCell(s.out, own)),
+      el("td", { class: "num", text: s.minutes == null ? "" : hoursText(s.minutes) }),
+      el("td", {}, label ? el("span", { class: "badge " + cls, text: label }) : null, ...fix)));
+  }
+}
+
+function drawAll(users) {
+  const t = $("allTable");
+  t.innerHTML = "";
+  t.append(el("tr", {}, ...["名前", "勤務日数", "合計", "打刻漏れ"].map((h) => el("th", { text: h }))));
+  for (const u of users) {
+    const miss = u.shifts.filter((s) => s.state === "missing_in" || s.state === "missing_out").length;
+    t.append(el("tr", {},
+      el("td", {}, el("a", { href: "#", text: u.user, onclick: (e) => { e.preventDefault(); $("who").value = u.user; load(); } })),
+      el("td", { class: "num", text: u.days + " 日" }),
+      el("td", { class: "num", text: hoursText(u.minutes) }),
+      el("td", {}, miss ? el("span", { class: "badge warn", text: miss + " 件" }) : null)));
+  }
+}
+
+async function load() {
+  if (!TENANT) return showDenied($("denied"), { message: "unknown tenant" });
+  if (!me) {
+    const s = await api("status", { tenant: TENANT });
+    if (s.status !== "success") return showDenied($("denied"), s);
+    me = s;
+    $("storeName").textContent = s.name + " の勤務時間";
+    document.title = "勤務時間 - " + s.name;
+    if (s.my_role === "admin") {
+      $("who").classList.remove("hidden");
+      $("who").append(el("option", { value: "", text: "自分" }), el("option", { value: "*", text: "全員" }));
+    }
+  }
+  $("denied").classList.add("hidden");
+  $("body").classList.remove("hidden");
+  const who = $("who").value;
+  const body = { tenant: TENANT, month: $("month").value };
+  if (who === "*") body.all = true;
+  else if (who) body.user = who;
+  const r = await api("month", body);
+  if (r.status !== "success") return showMsg("msg", msgOf(r), "err");
+  showMsg("msg", "");
+  data = r;
+  // 全員を見たときは、名前の選択肢にメンバーを足しておく
+  if (who === "*") {
+    for (const u of r.users) {
+      if (![...$("who").options].some((o) => o.value === u.user)) $("who").append(el("option", { value: u.user, text: u.user }));
+    }
+  }
+  const all = who === "*";
+  $("allCard").classList.toggle("hidden", !all);
+  $("detailCard").classList.toggle("hidden", all);
+  const totalDays = r.users.reduce((a, u) => a + u.days, 0);
+  const totalMin = r.users.reduce((a, u) => a + u.minutes, 0);
+  const miss = r.users.reduce((a, u) => a + u.shifts.filter((s) => s.state.startsWith("missing")).length, 0);
+  $("summary").innerHTML = "";
+  $("summary").append(el("span", { class: "total", text: hoursText(totalMin) }),
+    el("span", { class: "muted", text: (all ? "全員で延べ " : "") + totalDays + " 日" }));
+  if (miss) $("summary").append(el("span", { class: "badge warn", text: "打刻漏れ " + miss + " 件" }));
+  if (all) drawAll(r.users);
+  else {
+    const u = r.users[0];
+    const own = u.user === me.user;
+    $("detailTitle").textContent = (own ? "" : u.user + " さんの") + "日ごとの明細";
+    $("addReq").classList.toggle("hidden", !own);
+    drawDetail(u, own);
+  }
+}
+
+// CSV（日本時間）。Excel で文字化けしないよう BOM を付ける
+$("csv").onclick = () => {
+  if (!data) return;
+  const q = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const local = (p) => (p ? utcToLocalInput(p.at).replace("T", " ") : "");
+  const rows = [["名前", "日付", "出勤", "退勤", "分", "状態"]];
+  for (const u of data.users) {
+    for (const s of u.shifts) {
+      rows.push([u.user, s.date, local(s.in), local(s.out), s.minutes == null ? "" : s.minutes, STATE[s.state][0] || "OK"]);
+    }
+  }
+  const csv = "﻿" + rows.map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
+  const a = el("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
+    download: "kintai_" + data.month + ($("who").value === "*" ? "_all" : "") + ".csv" });
+  document.body.append(a);
+  a.click();
+  a.remove();
+};
+
+$("month").onchange = load;
+$("who").onchange = load;
+$("addReq").onclick = () => openRequestDialog({ action: "add", kind: "in",
+  onDone: () => showMsg("msg", "打刻を足すようお願いしました", "ok") });
+
+load();
+</script>
+</body>
+</html>

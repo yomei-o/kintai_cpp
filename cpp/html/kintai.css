@@ -1,0 +1,80 @@
+/* 勤怠のページ（clock / month / requests）共通。色は index.html と同じ */
+:root {
+  --bg: #f6f7f9; --card: #ffffff; --fg: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+  --accent: #2563eb; --accent-fg: #ffffff; --danger: #dc2626; --ok: #15803d;
+  --call: #f59e0b; --call-fg: #1d2330; --soft: #eef2ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --card: #1b2028; --fg: #e6e9ef; --muted: #9aa3b2; --line: #2c333e;
+    --accent: #5b8cff; --accent-fg: #0b1020; --danger: #f87171; --ok: #4ade80;
+    --call: #fbbf24; --call-fg: #12151b; --soft: #1f2a44;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.6;
+}
+main { max-width: 560px; margin: 0 auto; padding: 20px 16px 64px; }
+main.wide { max-width: 1100px; }
+h1 { font-size: 1.4rem; margin: 0; }
+h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 14px; }
+.muted, .note { color: var(--muted); }
+.note { font-size: .9rem; }
+.hidden { display: none !important; }
+a { color: var(--accent); }
+button {
+  font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+button.big { width: 100%; padding: 14px; font-size: 1.15rem; font-weight: 700; border-radius: 12px; }
+button.danger { color: var(--danger); }
+button.call { background: var(--call); border-color: var(--call); color: var(--call-fg); font-weight: 700; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+input[type=text] {
+  font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); width: 100%; max-width: 240px;
+}
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.msg { min-height: 1.6em; margin-top: 10px; font-size: .95rem; }
+.msg.err { color: var(--danger); }
+.msg.ok { color: var(--ok); }
+.pill { display: inline-block; font-size: .8rem; padding: 1px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.pill.on { border-color: var(--ok); color: var(--ok); }
+.pill.off { border-color: var(--danger); color: var(--danger); }
+
+/* 打刻 */
+.punch { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.punch button { padding: 28px 10px; font-size: 1.6rem; font-weight: 800; border-radius: 16px; }
+.punch button.next { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.done { text-align: center; }
+.done .big { font-size: 2.6rem; font-weight: 800; }
+
+/* 一覧・表 */
+.item { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 8px 0; border-top: 1px solid var(--line); }
+.item:first-of-type { border-top: none; }
+.item .meta { font-size: .85rem; color: var(--muted); white-space: pre-wrap; }
+.item .row { margin-top: 0; }
+table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+th, td { text-align: left; padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.num { text-align: right; white-space: nowrap; }
+tr.warn td { background: color-mix(in srgb, var(--call) 18%, transparent); }
+.total { font-size: 1.4rem; font-weight: 800; }
+.badge { display: inline-block; font-size: .75rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.badge.warn { border-color: var(--call); color: var(--fg); background: color-mix(in srgb, var(--call) 25%, transparent); }
+.badge.ok { border-color: var(--ok); color: var(--ok); }
+.badge.ng { border-color: var(--danger); color: var(--danger); }
+select, input[type=datetime-local], input[type=month], textarea {
+  font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg);
+}
+textarea { width: 100%; min-height: 4em; }
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); max-width: 480px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(0, 0, 0, .4); }
+.nav { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }

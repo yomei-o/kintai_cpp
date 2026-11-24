@@ -1,0 +1,4 @@
+python ddl2cpp passkey.ddl model_passkey test::passkey
+python ddl2cpp switch.ddl model_switch test::switch_state
+python ddl2cpp tenant.ddl model_tenant test::tenant
+python ddl2cpp kintai.ddl model_kintai test::kintai

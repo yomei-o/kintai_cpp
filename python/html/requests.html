@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>修正リクエスト</title>
+<link rel="stylesheet" href="kintai.css">
+</head>
+<body>
+<main>
+  <h1 id="storeName">修正リクエスト</h1>
+  <div id="nav"></div>
+
+  <div id="denied" class="card hidden"></div>
+
+  <div id="body" class="hidden">
+    <div id="pendingCard" class="card">
+      <h2 id="pendingTitle">承認待ち</h2>
+      <div id="pending"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-top:0">
+        <button id="addReq">打刻を足すお願い</button>
+        <a id="toMonth" href="#">打刻を直す・消すお願いは「勤務時間」の明細から</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>これまでのリクエスト</h2>
+      <div id="history"></div>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+</main>
+
+<script src="kintai.js"></script>
+<script>
+"use strict";
+
+const ACTION = { change: "直す", add: "足す", delete: "消す" };
+const STATUS = { pending: ["承認待ち", "warn"], approved: ["承認", "ok"], rejected: ["却下", "ng"], canceled: ["取り下げ", ""] };
+let me = null;
+
+$("nav").append(navLinks("requests.html"));
+$("toMonth").href = pageUrl("month.html");
+
+function what(r) {
+  const before = r.old_kind ? KIND_LABEL[r.old_kind] + " " + mdhm(r.old_at) : "";
+  const after = r.kind ? KIND_LABEL[r.kind] + " " + mdhm(r.at) : "";
+  if (r.action === "change") return before + " → " + after;
+  if (r.action === "add") return after + " を足す";
+  return before + " を消す";
+}
+
+function line(r, buttons) {
+  const [label, cls] = STATUS[r.status];
+  let meta = r.reason;
+  if (r.status !== "pending") meta += "\n" + label + ": " + (r.decided_by || "") + " " + mdhm(r.decided_at);
+  return el("div", { class: "item" },
+    el("div", {},
+      el("div", {}, el("span", { class: "badge " + cls, text: label }), " ",
+        me.my_role === "admin" ? el("b", { text: r.user + " さん " }) : null,
+        el("span", { text: "【" + ACTION[r.action] + "】" + what(r) })),
+      el("div", { class: "meta", text: meta + "\n" + mdhm(r.created_at) + " にお願い" })),
+    el("div", { class: "row" }, ...buttons));
+}
+
+async function decide(r, approve) {
+  if (!approve && !confirm(r.user + " さんのリクエストを却下しますか？")) return;
+  const res = await api("request_decide", { tenant: TENANT, id: r.id, approve });
+  if (res.status !== "success") showMsg("msg", msgOf(res), "err");
+  else showMsg("msg", approve ? "承認しました。打刻が直りました" : "却下しました", "ok");
+  await refresh();
+}
+
+async function cancel(r) {
+  if (!confirm("このリクエストを取り下げますか？")) return;
+  const res = await api("request_cancel", { tenant: TENANT, id: r.id });
+  if (res.status !== "success") showMsg("msg", msgOf(res), "err");
+  else showMsg("msg", "取り下げました", "ok");
+  await refresh();
+}
+
+async function refresh() {
+  if (!TENANT) return showDenied($("denied"), { message: "unknown tenant" });
+  if (!me) {
+    const s = await api("status", { tenant: TENANT });
+    if (s.status !== "success") return showDenied($("denied"), s);
+    me = s;
+    $("storeName").textContent = s.name + " の修正リクエスト";
+    document.title = "修正リクエスト - " + s.name;
+  }
+  const r = await api("requests", { tenant: TENANT });
+  if (r.status !== "success") return showMsg("msg", msgOf(r), "err");
+  $("denied").classList.add("hidden");
+  $("body").classList.remove("hidden");
+  const admin = me.my_role === "admin";
+  const pending = r.requests.filter((x) => x.status === "pending");
+  const done = r.requests.filter((x) => x.status !== "pending");
+  $("pendingTitle").textContent = (admin ? "承認待ち（全員）" : "承認待ち") + " " + pending.length + " 件";
+  render($("pending"), JSON.stringify([pending, admin]), () => {
+    if (!pending.length) $("pending").append(el("p", { class: "note", text: "承認待ちのリクエストはありません。" }));
+    for (const x of pending) {
+      const b = [];
+      if (admin) {
+        b.push(el("button", { class: "primary", text: "承認", onclick: () => decide(x, true) }),
+          el("button", { class: "danger", text: "却下", onclick: () => decide(x, false) }));
+      }
+      if (x.user === me.user) b.push(el("button", { text: "取り下げ", onclick: () => cancel(x) }));
+      $("pending").append(line(x, b));
+    }
+  });
+  render($("history"), JSON.stringify(done), () => {
+    if (!done.length) $("history").append(el("p", { class: "note", text: "まだありません。" }));
+    for (const x of done) $("history").append(line(x, []));
+  });
+}
+
+$("addReq").onclick = () => openRequestDialog({ action: "add", kind: "in", onDone: refresh });
+
+refresh();
+poll(refresh, 15000);
+</script>
+</body>
+</html>

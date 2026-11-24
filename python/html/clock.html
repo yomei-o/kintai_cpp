@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>打刻</title>
+<link rel="stylesheet" href="kintai.css">
+</head>
+<body>
+<main>
+  <h1 id="storeName">打刻</h1>
+  <div id="who" class="muted"></div>
+  <div id="nav"></div>
+
+  <div id="denied" class="card hidden"></div>
+
+  <div id="body" class="hidden">
+    <div id="doneCard" class="card done hidden">
+      <div id="doneText" class="big"></div>
+      <div id="doneTime" class="muted"></div>
+      <div class="row" style="justify-content:center">
+        <button id="oops">時刻・種類を間違えた</button>
+        <button id="oopsDel">間違えて押した（消したい）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="punch">
+        <button id="in">出勤</button>
+        <button id="out">退勤</button>
+      </div>
+      <div id="msg" class="msg"></div>
+      <div id="last" class="note"></div>
+    </div>
+
+    <div id="pending" class="card hidden"></div>
+  </div>
+</main>
+
+<script src="kintai.js"></script>
+<script>
+"use strict";
+
+let st = null;          // /api/kintai/v0/status
+let lastDone = null;    // いま打刻した打刻
+
+$("nav").append(navLinks("clock.html"));
+
+async function refresh() {
+  if (!TENANT) return showDenied($("denied"), { message: "unknown tenant" });
+  const r = await api("status", { tenant: TENANT });
+  if (r.status !== "success") {
+    if (!st) showDenied($("denied"), r);
+    else showMsg("msg", msgOf(r), "err");
+    return;
+  }
+  st = r;
+  $("denied").classList.add("hidden");
+  $("body").classList.remove("hidden");
+  document.title = "打刻 - " + r.name;
+  $("storeName").textContent = r.name;
+  $("who").textContent = r.user + " さん";
+  $("in").className = r.next === "in" ? "next" : "";
+  $("out").className = r.next === "out" ? "next" : "";
+  $("last").textContent = r.last ? "最後の打刻: " + KIND_LABEL[r.last.kind] + " " + mdhm(r.last.at) : "まだ打刻はありません。";
+  $("pending").classList.toggle("hidden", !r.pending);
+  if (r.pending) {
+    $("pending").innerHTML = "";
+    $("pending").append(el("span", { text: "承認待ちの修正リクエストが " + r.pending + " 件あります。" }),
+      el("a", { href: pageUrl("requests.html"), text: "見る" }));
+  }
+}
+
+async function punch(kind) {
+  $("in").disabled = $("out").disabled = true;
+  showMsg("msg", "打刻しています…");
+  const r = await api("punch", { tenant: TENANT, kind });
+  $("in").disabled = $("out").disabled = false;
+  if (r.status !== "success") return showMsg("msg", msgOf(r), "err");
+  showMsg("msg", "");
+  lastDone = r.punch;
+  $("doneCard").classList.remove("hidden");
+  $("doneText").textContent = KIND_LABEL[kind] + "しました";
+  $("doneTime").textContent = mdhm(r.punch.at);
+  try { if (navigator.vibrate) navigator.vibrate(150); } catch (e) {}
+  await refresh();
+}
+
+$("in").onclick = () => punch("in");
+$("out").onclick = () => punch("out");
+$("oops").onclick = () => openRequestDialog({
+  action: "change", punch: lastDone,
+  onDone: () => { $("doneTime").textContent += "（修正をお願いしました）"; refresh(); },
+});
+
+$("oopsDel").onclick = () => openRequestDialog({
+  action: "delete", punch: lastDone,
+  onDone: () => { $("doneTime").textContent += "（消すようお願いしました）"; refresh(); },
+});
+
+refresh();
+poll(refresh, 30000);
+</script>
+</body>
+</html>
